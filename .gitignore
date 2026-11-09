@@ -1,5 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
+/data/
+/.env
+/.env.*
 # dependencies
 /node_modules
 /.pnp
@@ -39,3 +41,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Keep the template of variable names (no values)
+!.env.example
+
+# Design tooling, not app code
+.agents/
+.claude/
+.taste-skill/
+skills-lock.json

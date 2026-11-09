@@ -11,7 +11,7 @@ const catalog: CatalogProduct[] = [
     name: "Gym Headphones",
     category: "Electronics",
     price: 249900,
-    currency: "INR",
+    currency: "USD",
     stock: 5,
   },
   {
@@ -19,7 +19,7 @@ const catalog: CatalogProduct[] = [
     name: "Premium Headphones",
     category: "Electronics",
     price: 4000000,
-    currency: "INR",
+    currency: "USD",
     stock: 3,
   },
   {
@@ -27,14 +27,14 @@ const catalog: CatalogProduct[] = [
     name: "Running Shoes",
     category: "Fashion",
     price: 199900,
-    currency: "INR",
+    currency: "USD",
     stock: 5,
   },
 ];
 
 const mandate = {
   budget: 400000,
-  currency: "INR",
+  currency: "USD",
   allowedCategories: ["Electronics"],
   maxQuantity: 2,
   requireApproval: true,

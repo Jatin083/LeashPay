@@ -3,7 +3,7 @@ import { z } from "zod";
 
 export const MandateSchema = z.object({
   budget: z.number().int().positive(),
-  currency: z.literal("INR"),
+  currency: z.literal("USD"),
   allowedCategories: z.array(z.string().min(1)).min(1),
   maxQuantity: z.number().int().positive().max(10),
   requireApproval: z.literal(true),
@@ -25,7 +25,7 @@ export type CatalogProduct = {
   name: string;
   category: string;
   price: number; // Minor currency units (paise)
-  currency: "INR";
+  currency: "USD";
   stock: number;
 };
 

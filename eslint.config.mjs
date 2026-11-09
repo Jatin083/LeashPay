@@ -12,7 +12,18 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Design-skill kit, not app code.
+    ".agents/**",
+    ".taste-skill/**",
   ]),
+  // Vendored React Bits components keep their upstream "latest props in a ref" pattern.
+  {
+    files: ["src/components/reactbits/**"],
+    rules: {
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
