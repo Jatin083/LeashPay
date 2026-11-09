@@ -148,3 +148,7 @@ src/
 
 - Repository: <https://github.com/Jatin083/LeashPay>
 - Hackathon: <https://paypalaihackathon.devpost.com/>
+
+## License
+
+[MIT](LICENSE)
