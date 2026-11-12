@@ -44,7 +44,7 @@ The policy engine and its tests live in [`src/lib/policy.ts`](src/lib/policy.ts)
 | Part | Tools |
 | --- | --- |
 | App | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4 |
-| AI agent | Groq (free tier, `llama-3.3-70b-versatile`) or the Claude API through `@anthropic-ai/sdk`, both with tool use |
+| AI agent | Groq (`llama-3.3-70b-versatile`) or Gemini (`gemini-3.6-flash`) on their free tiers, or the Claude API; all with tool use |
 | Payments | PayPal Orders v2 (create and capture), Sandbox only |
 | Rules and data | Zod, SQLite through `better-sqlite3` |
 | Motion | GSAP with ScrollTrigger, Motion, Lenis smooth scroll, React Bits components |
@@ -52,7 +52,7 @@ The policy engine and its tests live in [`src/lib/policy.ts`](src/lib/policy.ts)
 
 ## Run it locally
 
-You need Node.js 22 or newer, a [PayPal Developer](https://developer.paypal.com/) Sandbox app, and one AI key: a free [Groq key](https://console.groq.com/keys) or a paid [Anthropic key](https://console.anthropic.com/).
+You need Node.js 22 or newer, a [PayPal Developer](https://developer.paypal.com/) Sandbox app, and one AI key: a free [Groq key](https://console.groq.com/keys), a free [Gemini key](https://aistudio.google.com/apikey) or a paid [Anthropic key](https://console.anthropic.com/).
 
 ```bash
 npm install
@@ -73,9 +73,11 @@ Fill in `.env.local`:
 | `APP_URL` | Where PayPal returns the buyer, for example `http://localhost:3000` |
 | `GROQ_API_KEY` | Free Groq key for the shopping agent |
 | `GROQ_MODEL` | Optional Groq model (default `llama-3.3-70b-versatile`) |
+| `GEMINI_API_KEY` | Free Gemini key for the shopping agent |
+| `GEMINI_MODEL` | Optional Gemini model (default `gemini-3.6-flash`) |
 | `ANTHROPIC_API_KEY` | Paid Claude key; used instead of Groq when set |
 | `LEASHPAY_MODEL` | Optional Claude model (default `claude-sonnet-5-5`) |
-| `LEASHPAY_PROVIDER` | Optional: force `groq` or `anthropic` |
+| `LEASHPAY_PROVIDER` | Optional: force `groq`, `gemini` or `anthropic` (otherwise Claude, then Groq, then Gemini, by which key is set) |
 
 The agent's tools and the policy engine are the same whichever model answers. The shop shows which model answered under each reply.
 

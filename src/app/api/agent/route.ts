@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { AgentProviderError, runShoppingAgent } from "@/lib/agent";
+import { AgentProviderError, pickProvider, runShoppingAgent } from "@/lib/agent";
 
 const RequestSchema = z.object({
   messages: z
@@ -31,23 +31,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid chat request" }, { status: 400 });
   }
 
+  if (pickProvider() === null) {
+    return NextResponse.json(
+      { error: "No AI key is set. Add GROQ_API_KEY or GEMINI_API_KEY (both free) to .env.local and restart the server." },
+      { status: 503 }
+    );
+  }
+
   try {
     const result = await runShoppingAgent(parsed.data.messages);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Agent error:", error);
 
-    if (error instanceof AgentProviderError && error.provider === "groq") {
+    if (error instanceof AgentProviderError && error.provider !== "anthropic") {
+      const name = error.provider === "gemini" ? "Gemini" : "Groq";
+      const env = error.provider === "gemini" ? "GEMINI_API_KEY" : "GROQ_API_KEY";
       if (error.status === 401) {
         return NextResponse.json(
-          { error: "Groq API key is missing or invalid. Add GROQ_API_KEY to .env.local and restart the server." },
+          { error: `${name} API key is missing or invalid. Check ${env} in .env.local and restart the server.` },
           { status: 503 }
         );
       }
       if (error.status === 429) {
         return NextResponse.json(
-          { error: "The free Groq limit was reached. Wait a minute and try again." },
+          { error: `The free ${name} limit was reached. Wait a minute and try again.` },
           { status: 429 }
+        );
+      }
+      if (error.status === 404) {
+        return NextResponse.json(
+          { error: `${name} doesn't know that model. Check ${error.provider === "gemini" ? "GEMINI_MODEL" : "GROQ_MODEL"} in .env.local.` },
+          { status: 502 }
         );
       }
       return NextResponse.json({ error: "The shopping agent could not respond." }, { status: 502 });

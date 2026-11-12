@@ -247,7 +247,7 @@ function runTool(
 /** A provider error the API route can turn into a clear message (bad key, rate limit, outage). */
 export class AgentProviderError extends Error {
   constructor(
-    public provider: "groq" | "anthropic",
+    public provider: "groq" | "gemini" | "anthropic",
     public status: number,
     message: string
   ) {
@@ -256,19 +256,24 @@ export class AgentProviderError extends Error {
 }
 
 /**
- * Which model answers. Set LEASHPAY_PROVIDER to "groq" or "anthropic" to choose.
- * Left unset: Claude when an Anthropic key is present, otherwise Groq when a Groq key is present.
+ * Which model answers. Set LEASHPAY_PROVIDER to "groq", "gemini" or "anthropic" to choose.
+ * Left unset: Claude when an Anthropic key is present, then Groq, then Gemini.
+ * With no key at all it reports the missing key instead of guessing.
  */
-function pickProvider(): "groq" | "anthropic" {
+export function pickProvider(): "groq" | "gemini" | "anthropic" | null {
   const chosen = process.env.LEASHPAY_PROVIDER?.toLowerCase();
-  if (chosen === "groq" || chosen === "anthropic") return chosen;
+  if (chosen === "groq" || chosen === "gemini" || chosen === "anthropic") return chosen;
   if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return "anthropic";
   if (process.env.GROQ_API_KEY) return "groq";
-  return "anthropic";
+  if (process.env.GEMINI_API_KEY) return "gemini";
+  return null;
 }
 
 export async function runShoppingAgent(history: ChatTurn[]): Promise<AgentResult> {
-  return pickProvider() === "groq" ? runWithGroq(history) : runWithClaude(history);
+  const provider = pickProvider();
+  if (provider === null) throw new AgentProviderError("groq", 401, "No AI key is set");
+  if (provider === "anthropic") return runWithClaude(history);
+  return runWithCompat(provider, history);
 }
 
 async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
@@ -336,69 +341,93 @@ async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
   };
 }
 
-/* ---------- Groq (free tier): OpenAI-style chat completions with tool calls ---------- */
+/* ---------- Groq and Gemini (free tiers): OpenAI-style chat completions with tool calls ---------- */
 
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+type CompatProvider = "groq" | "gemini";
 
-type GroqToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
-type GroqMessage =
+const COMPAT: Record<CompatProvider, { label: string; url: string; keyEnv: string; model: string }> = {
+  groq: {
+    label: "Groq",
+    url: "https://api.groq.com/openai/v1/chat/completions",
+    keyEnv: "GROQ_API_KEY",
+    model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+  },
+  gemini: {
+    label: "Gemini",
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    keyEnv: "GEMINI_API_KEY",
+    model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
+  },
+};
+
+// Gemini 3 returns extra fields on tool calls (a thought signature). They are kept and sent back as received.
+type CompatToolCall = { id: string; type: "function"; function: { name: string; arguments: string } } & Record<string, unknown>;
+type CompatMessage =
   | { role: "system" | "user"; content: string }
-  | { role: "assistant"; content: string | null; tool_calls?: GroqToolCall[] }
+  | { role: "assistant"; content: string | null; tool_calls?: CompatToolCall[] }
   | { role: "tool"; tool_call_id: string; name: string; content: string };
 
-// The same four tools, in Groq's function format. The policy engine behind them is unchanged.
-const groqTools = tools.map((t) => ({
+// The same four tools, in the OpenAI function format. The policy engine behind them is unchanged.
+const compatTools = tools.map((t) => ({
   type: "function" as const,
   function: { name: t.name, description: t.description, parameters: t.input_schema },
 }));
 
-async function callGroq(messages: GroqMessage[]): Promise<{ message: { content: string | null; tool_calls?: GroqToolCall[] } }> {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new AgentProviderError("groq", 401, "GROQ_API_KEY is not set");
+async function callCompat(
+  provider: CompatProvider,
+  messages: CompatMessage[]
+): Promise<{ message: { content: string | null; tool_calls?: CompatToolCall[] } }> {
+  const cfg = COMPAT[provider];
+  const key = process.env[cfg.keyEnv];
+  if (!key) throw new AgentProviderError(provider, 401, `${cfg.keyEnv} is not set`);
 
-  // One retry: smaller open models sometimes emit a malformed tool call (400 tool_use_failed).
+  // One retry: models sometimes emit a malformed tool call (Groq: 400 tool_use_failed).
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(GROQ_URL, {
+    const res = await fetch(cfg.url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: cfg.model,
         messages,
-        tools: groqTools,
+        tools: compatTools,
         tool_choice: "auto",
         temperature: 0.2,
-        max_completion_tokens: 1024,
+        max_completion_tokens: 2048,
       }),
       cache: "no-store",
     });
 
-    const data = await res.json().catch(() => ({}));
+    const raw = await res.json().catch(() => ({}));
     if (res.ok) {
-      const choice = data.choices?.[0];
-      if (!choice?.message) throw new AgentProviderError("groq", 502, "Groq returned no message");
+      const choice = raw.choices?.[0];
+      if (!choice?.message) throw new AgentProviderError(provider, 502, `${cfg.label} returned no message`);
       return choice;
     }
 
-    const code = data?.error?.code;
-    if (res.status === 400 && code === "tool_use_failed" && attempt === 0) continue;
-    throw new AgentProviderError("groq", res.status, data?.error?.message || `Groq request failed (${res.status})`);
+    // Gemini wraps errors in an array; Groq does not.
+    const err = (Array.isArray(raw) ? raw[0] : raw)?.error ?? {};
+    const message = String(err.message || `${cfg.label} request failed (${res.status})`);
+    if (res.status === 400 && err.code === "tool_use_failed" && attempt === 0) continue;
+    // Gemini answers a bad key with 400; report it as an auth problem.
+    const keyProblem = res.status === 401 || res.status === 403 || (provider === "gemini" && res.status === 400 && /api key/i.test(message));
+    throw new AgentProviderError(provider, keyProblem ? 401 : res.status, message);
   }
-  throw new AgentProviderError("groq", 502, "Groq could not produce a valid tool call");
+  throw new AgentProviderError(provider, 502, `${cfg.label} could not produce a valid tool call`);
 }
 
-async function runWithGroq(history: ChatTurn[]): Promise<AgentResult> {
-  const engine = `${GROQ_MODEL} (Groq)`;
-  const messages: GroqMessage[] = [
+async function runWithCompat(provider: CompatProvider, history: ChatTurn[]): Promise<AgentResult> {
+  const cfg = COMPAT[provider];
+  const engine = `${cfg.model} (${cfg.label})`;
+  const messages: CompatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
-    ...history.map((turn) => ({ role: turn.role, content: turn.content }) as GroqMessage),
+    ...history.map((turn) => ({ role: turn.role, content: turn.content }) as CompatMessage),
   ];
 
   const steps: AgentStep[] = [];
   let proposal: CartProposal | null = null;
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const { message } = await callGroq(messages);
+    const { message } = await callCompat(provider, messages);
     const calls = message.tool_calls ?? [];
 
     if (calls.length === 0) {
