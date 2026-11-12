@@ -35,7 +35,32 @@ export type AgentResult = {
   proposal: CartProposal | null;
   /** Which model answered, shown under the agent's reply. */
   engine: string;
+  /** Products the agent looked at or proposed, shown as cards under its reply (max 4). */
+  products: ProductCard[];
 };
+
+export type ProductCard = {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  rating: number;
+  stock: number;
+  description: string;
+};
+
+/** The products to show with a reply: the proposed ones first, then what was searched or compared. */
+function cardsFor(shown: ProductRow[], proposal: CartProposal | null): ProductCard[] {
+  const catalog = getCatalogProducts() as ProductRow[];
+  const proposed = (proposal?.items ?? [])
+    .map((i) => catalog.find((p) => p.id === i.productId))
+    .filter((p): p is ProductRow => Boolean(p));
+  const seen = new Set<string>();
+  return [...proposed, ...shown]
+    .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))
+    .slice(0, 4)
+    .map(({ id, name, category, price, rating, stock, description }) => ({ id, name, category, price, rating, stock, description }));
+}
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
@@ -150,7 +175,8 @@ type ToolOutcome = { content: string; isError?: boolean; summary: string };
 function runTool(
   name: string,
   input: unknown,
-  onProposal: (proposal: CartProposal) => void
+  onProposal: (proposal: CartProposal) => void,
+  onProducts?: (rows: ProductRow[]) => void
 ): ToolOutcome {
   const catalog = getCatalogProducts() as ProductRow[];
 
@@ -183,6 +209,7 @@ function runTool(
         const text = `${p.name} ${p.category} ${p.description}`.toLowerCase();
         return p.price <= maxCents && (words.length === 0 || words.some((w) => text.includes(w)));
       });
+      onProducts?.(matches);
       return {
         content: JSON.stringify(matches.map(productView)),
         summary: `Searched "${parsed.data.query || "all"}": ${matches.length} result(s)`,
@@ -197,6 +224,7 @@ function runTool(
       const found = catalog
         .filter((p) => parsed.data.product_ids.includes(p.id))
         .sort((a, b) => a.price - b.price);
+      onProducts?.(found);
       return {
         content: JSON.stringify(found.map(productView)),
         summary: `Compared ${found.map((p) => p.name).join(", ")}`,
@@ -285,6 +313,10 @@ async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
 
   const steps: AgentStep[] = [];
   let proposal: CartProposal | null = null;
+  let shown: ProductRow[] = [];
+  const keepShown = (rows: ProductRow[]) => {
+    shown = rows;
+  };
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const response = await client.beta.messages.create({
@@ -299,7 +331,7 @@ async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
     });
 
     if (response.stop_reason === "refusal") {
-      return { reply: "I can't help with that request.", steps, proposal, engine };
+      return { reply: "I can't help with that request.", steps, proposal, engine, products: cardsFor(shown, proposal) };
     }
 
     const text = response.content
@@ -309,7 +341,7 @@ async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
       .trim();
 
     if (response.stop_reason !== "tool_use") {
-      return { reply: text || "Done.", steps, proposal, engine };
+      return { reply: text || "Done.", steps, proposal, engine, products: cardsFor(shown, proposal) };
     }
 
     // Append the full content (thinking and fallback blocks included) unchanged.
@@ -318,9 +350,14 @@ async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
     const toolResults: Anthropic.Beta.BetaToolResultBlockParam[] = [];
     for (const block of response.content) {
       if (block.type !== "tool_use") continue;
-      const outcome = runTool(block.name, block.input, (p) => {
-        proposal = p;
-      });
+      const outcome = runTool(
+        block.name,
+        block.input,
+        (p) => {
+          proposal = p;
+        },
+        keepShown
+      );
       steps.push({ tool: block.name, summary: outcome.summary });
       toolResults.push({
         type: "tool_result",
@@ -338,6 +375,7 @@ async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
     steps,
     proposal,
     engine,
+    products: cardsFor(shown, proposal),
   };
 }
 
@@ -425,13 +463,17 @@ async function runWithCompat(provider: CompatProvider, history: ChatTurn[]): Pro
 
   const steps: AgentStep[] = [];
   let proposal: CartProposal | null = null;
+  let shown: ProductRow[] = [];
+  const keepShown = (rows: ProductRow[]) => {
+    shown = rows;
+  };
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const { message } = await callCompat(provider, messages);
     const calls = message.tool_calls ?? [];
 
     if (calls.length === 0) {
-      return { reply: message.content?.trim() || "Done.", steps, proposal, engine };
+      return { reply: message.content?.trim() || "Done.", steps, proposal, engine, products: cardsFor(shown, proposal) };
     }
 
     messages.push({ role: "assistant", content: message.content ?? "", tool_calls: calls });
@@ -447,9 +489,14 @@ async function runWithCompat(provider: CompatProvider, history: ChatTurn[]): Pro
       const outcome =
         input === null
           ? { content: "Invalid JSON arguments.", isError: true, summary: "Invalid tool input" }
-          : runTool(call.function.name, input, (p) => {
-              proposal = p;
-            });
+          : runTool(
+              call.function.name,
+              input,
+              (p) => {
+                proposal = p;
+              },
+              keepShown
+            );
       steps.push({ tool: call.function.name, summary: outcome.summary });
       messages.push({ role: "tool", tool_call_id: call.id, name: call.function.name, content: outcome.content });
     }
@@ -460,5 +507,6 @@ async function runWithCompat(provider: CompatProvider, history: ChatTurn[]): Pro
     steps,
     proposal,
     engine,
+    products: cardsFor(shown, proposal),
   };
 }

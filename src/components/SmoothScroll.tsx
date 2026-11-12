@@ -23,7 +23,8 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Smooth scrolling only helps a mouse wheel; on touch screens it just costs a frame loop.
+    if (window.matchMedia("(prefers-reduced-motion: reduce), (pointer: coarse)").matches) return;
 
     const lenis = new Lenis({ lerp: 0.11, anchors: true });
     lenis.on("scroll", ScrollTrigger.update);

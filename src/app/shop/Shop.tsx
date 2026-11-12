@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useSpring, useTransform } from "motion/react";
 import { Check, Loader2, Minus, Plus, Star, Trash2 } from "lucide-react";
 import Agent, { type CartItem } from "./Agent";
+import ProductArt from "@/components/ProductArt";
 
 const SPRING = { type: "spring", bounce: 0, duration: 0.45 } as const;
 
@@ -182,6 +183,10 @@ export default function Shop({ products, mandate }: { products: Product[]; manda
             setMessage("Your agent proposed this cart. Review it, then approve payment on PayPal.");
             setCart(items);
           }}
+          onAddProduct={(productId) => {
+            const product = products.find((p) => p.id === productId);
+            if (product) addToCart(product);
+          }}
         />
 
         <aside className="card lg:sticky" style={{ top: "calc(var(--nav-h) + 20px)", padding: 22 }} aria-labelledby="cart-h">
@@ -316,11 +321,13 @@ export default function Shop({ products, mandate }: { products: Product[]; manda
               return (
                 <motion.li
                   key={product.id}
-                  className="card"
+                  id={`p-${product.id}`}
+                  className="card catalog-card"
                   style={{ display: "flex", flexDirection: "column", gap: 14 }}
                   whileHover={{ y: -3, boxShadow: "0 18px 36px -24px rgba(10,10,10,0.35)" }}
                   transition={SPRING}
                 >
+                  <ProductArt name={product.name} category={product.category} />
                   <div className="flex items-center justify-between gap-3">
                     <span className="chip">{product.category}</span>
                     <span className="small" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>

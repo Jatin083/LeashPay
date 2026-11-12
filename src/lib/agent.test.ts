@@ -108,6 +108,7 @@ describe("Groq agent loop", () => {
 
     expect(result.proposal).toEqual({ items: [{ productId: "headphones-1", quantity: 1 }], allowed: true, total: 3000 });
     expect(result.engine).toContain("(Groq)");
+    expect(result.products.map((p) => p.id)[0]).toBe("headphones-1");
   });
 
   it("retries once when the model sends a malformed tool call", async () => {

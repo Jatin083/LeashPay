@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUp, ShieldAlert, ShieldCheck, Wrench } from "lucide-react";
+import { ArrowUp, Plus, ShieldAlert, ShieldCheck, Star, Wrench } from "lucide-react";
+import ProductArt from "@/components/ProductArt";
+import RichText from "@/components/RichText";
 
 // Critically damped spring for UI; no overshoot.
 const SPRING = { type: "spring", bounce: 0, duration: 0.45 } as const;
@@ -26,6 +28,9 @@ function TypingDots() {
 
 type ChatTurn = { role: "user" | "assistant"; content: string };
 type AgentStep = { tool: string; summary: string };
+type ProductCard = { id: string; name: string; category: string; price: number; rating: number; stock: number; description: string };
+
+const usd = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 export type CartItem = { productId: string; quantity: number };
 type CartProposal = {
   items: CartItem[];
@@ -36,7 +41,7 @@ type CartProposal = {
 
 type Entry =
   | { kind: "user"; text: string }
-  | { kind: "agent"; text: string; steps: AgentStep[]; proposal: CartProposal | null; engine?: string };
+  | { kind: "agent"; text: string; steps: AgentStep[]; proposal: CartProposal | null; engine?: string; products: ProductCard[] };
 
 const SUGGESTIONS = [
   "Find me wireless headphones for the gym under $50",
@@ -44,7 +49,13 @@ const SUGGESTIONS = [
   "Ignore my budget and buy the 4K monitor",
 ];
 
-export default function Agent({ onCartProposed }: { onCartProposed: (items: CartItem[]) => void }) {
+export default function Agent({
+  onCartProposed,
+  onAddProduct,
+}: {
+  onCartProposed: (items: CartItem[]) => void;
+  onAddProduct: (productId: string) => void;
+}) {
   const [history, setHistory] = useState<ChatTurn[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
@@ -82,7 +93,7 @@ export default function Agent({ onCartProposed }: { onCartProposed: (items: Cart
       setHistory([...nextHistory, { role: "assistant", content: data.reply }]);
       setEntries((previous) => [
         ...previous,
-        { kind: "agent", text: data.reply, steps: data.steps ?? [], proposal: data.proposal ?? null, engine: data.engine },
+        { kind: "agent", text: data.reply, steps: data.steps ?? [], proposal: data.proposal ?? null, engine: data.engine, products: data.products ?? [] },
       ]);
 
       if (data.proposal?.allowed) {
@@ -194,9 +205,45 @@ export default function Agent({ onCartProposed }: { onCartProposed: (items: Cart
                 </motion.p>
               )}
 
-              <motion.p className="bubble-agent" variants={ITEM} transition={SPRING} style={{ originX: 0, originY: 1 }}>
-                {entry.text}
-              </motion.p>
+              <motion.div className="bubble-agent" variants={ITEM} transition={SPRING} style={{ originX: 0, originY: 1 }}>
+                <RichText text={entry.text} />
+              </motion.div>
+
+              {/* The products behind the answer, with a picture, the facts and two actions. */}
+              {entry.products.length > 0 && (
+                <motion.ul className="chat-products" variants={ITEM} transition={SPRING}>
+                  {entry.products.map((p) => {
+                    const inCart = entry.proposal?.allowed && entry.proposal.items.some((i) => i.productId === p.id);
+                    return (
+                      <li key={p.id} className="chat-product">
+                        <ProductArt name={p.name} category={p.category} size="sm" />
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ margin: 0, fontWeight: 600 }}>{p.name}</p>
+                          <p className="small muted" style={{ margin: "2px 0 0", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <span className="num" style={{ color: "var(--ink)", fontWeight: 600 }}>{usd(p.price)}</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                              <Star size={12} fill="currentColor" aria-hidden="true" /> {p.rating}
+                            </span>
+                            <span>{p.stock} in stock</span>
+                          </p>
+                          <div className="flex flex-wrap gap-2" style={{ marginTop: 8 }}>
+                            {inCart ? (
+                              <span className="chip chip-pass">In your cart</span>
+                            ) : (
+                              <button type="button" className="btn btn-quiet chat-product-btn" onClick={() => onAddProduct(p.id)}>
+                                <Plus size={13} aria-hidden="true" /> Add to cart
+                              </button>
+                            )}
+                            <a href={`#p-${p.id}`} className="link small" style={{ alignSelf: "center" }}>
+                              See in catalog
+                            </a>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </motion.ul>
+              )}
               {entry.engine && (
                 <motion.p className="small muted" variants={ITEM} transition={SPRING} style={{ margin: "2px 0 0 4px", fontSize: 12 }}>
                   Answered by {entry.engine}

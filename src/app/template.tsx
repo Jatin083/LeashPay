@@ -1,28 +1,40 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "motion/react";
+
+// True only until the first page has mounted. The first load shows the server HTML
+// immediately; only later page changes fade in.
+let firstLoad = true;
 
 /*
   Next.js remounts a template on every navigation, so this runs once per page change:
-  the new page fades and sharpens in while a thin accent bar sweeps across the top.
-  No movement on the content itself, so GSAP measures pinned sections in their real place.
+  the new page fades in quickly while a thin accent bar sweeps across the top.
+  Opacity only: no blur or movement, which keeps it cheap and lets GSAP measure
+  pinned sections in their real place.
 */
 export default function Template({ children }: { children: React.ReactNode }) {
+  const [animate] = useState(() => {
+    const isNavigation = !firstLoad;
+    firstLoad = false;
+    return isNavigation;
+  });
+
   return (
     <>
-      <motion.span
-        aria-hidden="true"
-        className="route-bar"
-        initial={{ scaleX: 0, opacity: 1 }}
-        animate={{ scaleX: 1, opacity: 0 }}
-        transition={{ scaleX: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }, opacity: { duration: 0.3, delay: 0.55 } }}
-      />
+      {animate && (
+        <motion.span
+          aria-hidden="true"
+          className="route-bar"
+          initial={{ scaleX: 0, opacity: 1 }}
+          animate={{ scaleX: 1, opacity: 0 }}
+          transition={{ scaleX: { duration: 0.45, ease: [0.22, 1, 0.36, 1] }, opacity: { duration: 0.25, delay: 0.4 } }}
+        />
+      )}
       <motion.div
-        initial={{ opacity: 0, filter: "blur(10px)" }}
-        // A filter left on an ancestor (even blur(0px)) becomes the containing block for
-        // position: fixed and would break GSAP's pinned sections, so it ends as "none".
-        animate={{ opacity: 1, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        initial={animate ? { opacity: 0 } : false}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
       >
         {children}
       </motion.div>
