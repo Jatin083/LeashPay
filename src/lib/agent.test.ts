@@ -141,3 +141,27 @@ describe("Groq agent loop", () => {
     expect(err).toMatchObject({ provider: "groq", status: 429 });
   });
 });
+
+describe("provider fallback", () => {
+  it("answers with Groq when Gemini is rate-limited", async () => {
+    process.env.LEASHPAY_PROVIDER = "gemini";
+    process.env.GEMINI_API_KEY = "g";
+    process.env.GROQ_API_KEY = "q";
+    const requests = scriptFetch([
+      { status: 429, body: [{ error: { code: 429, message: "Resource exhausted", status: "RESOURCE_EXHAUSTED" } }] },
+      { body: choice({ content: "Here you go." }) },
+    ]);
+    const result = await runShoppingAgent([{ role: "user", content: "hi" }]);
+    expect(result.engine).toContain("(Groq)");
+    expect(requests[0].url).toContain("generativelanguage.googleapis.com");
+    expect(requests[1].url).toContain("api.groq.com");
+  });
+
+  it("does not hide a bad key behind a fallback", async () => {
+    process.env.LEASHPAY_PROVIDER = "gemini";
+    process.env.GEMINI_API_KEY = "wrong";
+    process.env.GROQ_API_KEY = "q";
+    scriptFetch([{ status: 400, body: [{ error: { code: 400, message: "API key not valid", status: "INVALID_ARGUMENT" } }] }]);
+    await expect(runShoppingAgent([{ role: "user", content: "hi" }])).rejects.toMatchObject({ provider: "gemini", status: 401 });
+  });
+});

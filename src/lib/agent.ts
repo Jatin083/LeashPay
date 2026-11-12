@@ -297,11 +297,48 @@ export function pickProvider(): "groq" | "gemini" | "anthropic" | null {
   return null;
 }
 
+type Provider = "groq" | "gemini" | "anthropic";
+
+const hasKey: Record<Provider, () => boolean> = {
+  anthropic: () => Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
+  groq: () => Boolean(process.env.GROQ_API_KEY),
+  gemini: () => Boolean(process.env.GEMINI_API_KEY),
+};
+
+/** The chosen provider first, then every other provider that has a key, as backups. */
+export function providerOrder(): Provider[] {
+  const first = pickProvider();
+  if (first === null) return [];
+  const rest = (["anthropic", "groq", "gemini"] as const).filter((p) => p !== first && hasKey[p]());
+  return [first, ...rest];
+}
+
+function runWith(provider: Provider, history: ChatTurn[]) {
+  return provider === "anthropic" ? runWithClaude(history) : runWithCompat(provider, history);
+}
+
+/** Free tiers hit rate limits fast; when one provider is limited or down, the next one with a key answers. */
+function isTransient(error: unknown) {
+  if (error instanceof AgentProviderError) return error.status === 429 || error.status >= 500;
+  if (error instanceof Anthropic.RateLimitError || error instanceof Anthropic.InternalServerError) return true;
+  return error instanceof Anthropic.APIConnectionError;
+}
+
 export async function runShoppingAgent(history: ChatTurn[]): Promise<AgentResult> {
-  const provider = pickProvider();
-  if (provider === null) throw new AgentProviderError("groq", 401, "No AI key is set");
-  if (provider === "anthropic") return runWithClaude(history);
-  return runWithCompat(provider, history);
+  const order = providerOrder();
+  if (order.length === 0) throw new AgentProviderError("groq", 401, "No AI key is set");
+
+  let lastError: unknown;
+  for (const provider of order) {
+    try {
+      return await runWith(provider, history);
+    } catch (error) {
+      lastError = error;
+      if (!isTransient(error)) throw error;
+      console.warn(`Agent provider ${provider} unavailable, trying the next one:`, error instanceof Error ? error.message : error);
+    }
+  }
+  throw lastError;
 }
 
 async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
