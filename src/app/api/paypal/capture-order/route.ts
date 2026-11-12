@@ -1,9 +1,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { getPayPalAccessToken } from "@/lib/paypal";
-import db from "@/lib/db";
-
-const PAYPAL_BASE_URL = "https://api-m.sandbox.paypal.com";
+import { getPayPalAccessToken, PAYPAL_BASE_URL } from "@/lib/paypal";
+import db, { insertPendingOrder } from "@/lib/db";
+import { checkCart } from "@/lib/spending";
 
 type SavedOrder = {
   paypal_order_id: string;
@@ -34,11 +33,17 @@ export async function POST(request: NextRequest) {
 
     orderId = body.orderId;
 
-    const savedOrder = db.prepare(`
+    let savedOrder = db.prepare(`
       SELECT paypal_order_id, status, total, currency
       FROM orders
       WHERE paypal_order_id = ?
     `).get(orderId) as SavedOrder | undefined;
+
+    // On a serverless host this instance may not have the order. Rebuild it from PayPal,
+    // re-pricing the cart from our own database, before anything is captured.
+    if (!savedOrder) {
+      savedOrder = await recoverOrder(orderId);
+    }
 
     if (!savedOrder) {
       return NextResponse.json(
@@ -206,4 +211,41 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Rebuilds a PENDING order this server instance has never seen, from the PayPal order itself.
+ * Trusts nothing from PayPal except which cart was ordered: the cart is priced again from the
+ * database and run through every spending rule, and PayPal's amount must match that total exactly.
+ */
+async function recoverOrder(orderId: string): Promise<SavedOrder | undefined> {
+  const accessToken = await getPayPalAccessToken();
+  const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${encodeURIComponent(orderId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) return undefined;
+
+  const order = await response.json();
+  const unit = order.purchase_units?.[0];
+  const tag: unknown = unit?.custom_id;
+  if (order.status !== "APPROVED" || typeof tag !== "string" || !/^([a-z0-9-]+:\d{1,2})(,[a-z0-9-]+:\d{1,2})*$/i.test(tag)) {
+    return undefined;
+  }
+
+  const items = tag.split(",").map((pair) => {
+    const [productId, quantity] = pair.split(":");
+    return { productId, quantity: Number(quantity) };
+  });
+
+  const check = checkCart({ items });
+  if (!check.ok || !check.result.allowed) return undefined;
+
+  const total = check.result.total;
+  if (unit.amount?.currency_code !== "USD" || unit.amount?.value !== (total / 100).toFixed(2)) {
+    return undefined;
+  }
+
+  insertPendingOrder({ paypalOrderId: orderId, total, currency: "USD", items });
+  return { paypal_order_id: orderId, status: "PENDING", total, currency: "USD" };
 }

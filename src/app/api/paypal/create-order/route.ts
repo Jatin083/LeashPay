@@ -39,6 +39,10 @@ export async function POST(request: NextRequest) {
       .join(", ")
       .slice(0, 127);
 
+    // The cart rides along with the PayPal order, so capture can rebuild the order on a
+    // server instance that never saw it (serverless hosts). Capture re-prices it from the database.
+    const cartTag = cart.items.map((item) => `${item.productId}:${item.quantity}`).join(",");
+
     const accessToken = await getPayPalAccessToken();
 
     const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
@@ -55,6 +59,7 @@ export async function POST(request: NextRequest) {
         purchase_units: [
           {
             description,
+            ...(cartTag.length <= 127 ? { custom_id: cartTag } : {}),
             amount: { currency_code: "USD", value },
           },
         ],

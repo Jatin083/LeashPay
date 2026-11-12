@@ -2,9 +2,14 @@
 import "server-only";
 import Database from "better-sqlite3";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-const dataDirectory = path.join(process.cwd(), "data");
+// Vercel's project files are read-only; its only writable place is the temp folder.
+// There the database is per server instance and is re-seeded when an instance starts.
+const dataDirectory = process.env.VERCEL
+  ? path.join(os.tmpdir(), "leashpay")
+  : path.join(process.cwd(), "data");
 
 fs.mkdirSync(dataDirectory, { recursive: true });
 
