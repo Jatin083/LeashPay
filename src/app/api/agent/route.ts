@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   if (pickProvider() === null) {
     return NextResponse.json(
-      { error: "No AI key is set. Add GROQ_API_KEY or GEMINI_API_KEY (both free) to .env.local and restart the server." },
+      { error: "No AI key is set. Add GROQ_API_KEY, GEMINI_API_KEY or OPENROUTER_API_KEY (all free) to .env.local and restart the server." },
       { status: 503 }
     );
   }
@@ -45,11 +45,12 @@ export async function POST(request: NextRequest) {
     console.error("Agent error:", error);
 
     if (error instanceof AgentProviderError && error.provider !== "anthropic") {
-      const name = error.provider === "gemini" ? "Gemini" : "Groq";
-      const env = error.provider === "gemini" ? "GEMINI_API_KEY" : "GROQ_API_KEY";
+      const names = { groq: ["Groq", "GROQ"], gemini: ["Gemini", "GEMINI"], openrouter: ["OpenRouter", "OPENROUTER"] } as const;
+      const [name, prefix] = names[error.provider];
+      const env = `${prefix}_API_KEY`;
       if (error.status === 401) {
         return NextResponse.json(
-          { error: `${name} API key is missing or invalid. Check ${env} in .env.local and restart the server.` },
+          { error: `${name} API key is missing or invalid. Check ${env} in your environment variables and restart or redeploy.` },
           { status: 503 }
         );
       }
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       }
       if (error.status === 404) {
         return NextResponse.json(
-          { error: `${name} doesn't know that model. Check ${error.provider === "gemini" ? "GEMINI_MODEL" : "GROQ_MODEL"} in .env.local.` },
+          { error: `${name} doesn't know that model. Check ${prefix}_MODEL in your environment variables.` },
           { status: 502 }
         );
       }

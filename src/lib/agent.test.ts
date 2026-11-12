@@ -26,7 +26,7 @@ function scriptFetch(replies: Reply[]) {
   return requests;
 }
 
-const KEYS = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GROQ_API_KEY", "GEMINI_API_KEY", "LEASHPAY_PROVIDER"];
+const KEYS = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "LEASHPAY_PROVIDER"];
 let saved: Record<string, string | undefined>;
 
 beforeEach(() => {
@@ -163,5 +163,20 @@ describe("provider fallback", () => {
     process.env.GROQ_API_KEY = "q";
     scriptFetch([{ status: 400, body: [{ error: { code: 400, message: "API key not valid", status: "INVALID_ARGUMENT" } }] }]);
     await expect(runShoppingAgent([{ role: "user", content: "hi" }])).rejects.toMatchObject({ provider: "gemini", status: 401 });
+  });
+});
+
+describe("OpenRouter", () => {
+  it("is the last backup and sends its free-model list", async () => {
+    process.env.GROQ_API_KEY = "q";
+    process.env.OPENROUTER_API_KEY = "o";
+    const requests = scriptFetch([
+      { status: 503, body: { error: { message: "Service unavailable" } } },
+      { body: choice({ content: "Hi from OpenRouter." }) },
+    ]);
+    const result = await runShoppingAgent([{ role: "user", content: "hi" }]);
+    expect(result.engine).toContain("(OpenRouter)");
+    expect(requests[1].url).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect((requests[1].body as unknown as { models: string[] }).models.length).toBeGreaterThan(1);
   });
 });

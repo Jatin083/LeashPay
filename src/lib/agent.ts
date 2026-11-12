@@ -293,7 +293,7 @@ function runTool(
 /** A provider error the API route can turn into a clear message (bad key, rate limit, outage). */
 export class AgentProviderError extends Error {
   constructor(
-    public provider: "groq" | "gemini" | "anthropic",
+    public provider: Provider,
     public status: number,
     message: string
   ) {
@@ -301,34 +301,34 @@ export class AgentProviderError extends Error {
   }
 }
 
-/**
- * Which model answers. Set LEASHPAY_PROVIDER to "groq", "gemini" or "anthropic" to choose.
- * Left unset: Claude when an Anthropic key is present, then Groq, then Gemini.
- * With no key at all it reports the missing key instead of guessing.
- */
-export function pickProvider(): "groq" | "gemini" | "anthropic" | null {
-  const chosen = process.env.LEASHPAY_PROVIDER?.toLowerCase();
-  if (chosen === "groq" || chosen === "gemini" || chosen === "anthropic") return chosen;
-  if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return "anthropic";
-  if (process.env.GROQ_API_KEY) return "groq";
-  if (process.env.GEMINI_API_KEY) return "gemini";
-  return null;
-}
+type Provider = "groq" | "gemini" | "openrouter" | "anthropic";
 
-type Provider = "groq" | "gemini" | "anthropic";
+// The automatic order: Claude (paid) when its key is set, then the free tiers, best limits first.
+const ORDER: Provider[] = ["anthropic", "groq", "gemini", "openrouter"];
 
 const hasKey: Record<Provider, () => boolean> = {
   anthropic: () => Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
   groq: () => Boolean(process.env.GROQ_API_KEY),
   gemini: () => Boolean(process.env.GEMINI_API_KEY),
+  openrouter: () => Boolean(process.env.OPENROUTER_API_KEY),
 };
+
+/**
+ * Which model answers first. Set LEASHPAY_PROVIDER to "groq", "gemini", "openrouter" or
+ * "anthropic" to choose. Left unset: Claude, then Groq, then Gemini, then OpenRouter, by
+ * which key is set. With no key at all it reports the missing key instead of guessing.
+ */
+export function pickProvider(): Provider | null {
+  const chosen = process.env.LEASHPAY_PROVIDER?.toLowerCase() as Provider | undefined;
+  if (chosen && ORDER.includes(chosen)) return chosen;
+  return ORDER.find((p) => hasKey[p]()) ?? null;
+}
 
 /** The chosen provider first, then every other provider that has a key, as backups. */
 export function providerOrder(): Provider[] {
   const first = pickProvider();
   if (first === null) return [];
-  const rest = (["anthropic", "groq", "gemini"] as const).filter((p) => p !== first && hasKey[p]());
-  return [first, ...rest];
+  return [first, ...ORDER.filter((p) => p !== first && hasKey[p]())];
 }
 
 function runWith(provider: Provider, history: ChatTurn[]) {
@@ -437,11 +437,25 @@ async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
   };
 }
 
-/* ---------- Groq and Gemini (free tiers): OpenAI-style chat completions with tool calls ---------- */
+/* ---------- Groq, Gemini and OpenRouter (free tiers): OpenAI-style chat completions with tool calls ---------- */
 
-type CompatProvider = "groq" | "gemini";
+type CompatProvider = "groq" | "gemini" | "openrouter";
 
-const COMPAT: Record<CompatProvider, { label: string; url: string; keyEnv: string; model: string }> = {
+const COMPAT: Record<
+  CompatProvider,
+  { label: string; url: string; keyEnv: string; model: string; extraBody?: Record<string, unknown>; extraHeaders?: Record<string, string> }
+> = {
+  openrouter: {
+    label: "OpenRouter",
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    keyEnv: "OPENROUTER_API_KEY",
+    model: process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free",
+    // Free models are often busy; OpenRouter tries these in order when the first one is.
+    extraBody: process.env.OPENROUTER_MODEL
+      ? undefined
+      : { models: ["google/gemma-4-31b-it:free", "nvidia/nemotron-3.5-super-vl:free", "nvidia/nemotron-3-ultra-550b-a55b:free"] },
+    extraHeaders: { "HTTP-Referer": process.env.APP_URL || "https://github.com/Jatin083/LeashPay", "X-Title": "LeashPay" },
+  },
   groq: {
     label: "Groq",
     url: "https://api.groq.com/openai/v1/chat/completions",
@@ -481,8 +495,9 @@ async function callCompat(
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await fetch(cfg.url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...cfg.extraHeaders },
       body: JSON.stringify({
+        ...cfg.extraBody,
         model: cfg.model,
         messages,
         tools: compatTools,

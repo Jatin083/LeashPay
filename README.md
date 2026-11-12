@@ -75,9 +75,11 @@ Fill in `.env.local`:
 | `GROQ_MODEL` | Optional Groq model (default `openai/gpt-oss-120b`) |
 | `GEMINI_API_KEY` | Free Gemini key for the shopping agent |
 | `GEMINI_MODEL` | Optional Gemini model (default `gemini-3.6-flash`) |
+| `OPENROUTER_API_KEY` | Free OpenRouter key, a third backup |
+| `OPENROUTER_MODEL` | Optional OpenRouter model (default `google/gemma-4-31b-it:free`, with two free backups) |
 | `ANTHROPIC_API_KEY` | Paid Claude key; used instead of Groq when set |
 | `LEASHPAY_MODEL` | Optional Claude model (default `claude-sonnet-5-5`) |
-| `LEASHPAY_PROVIDER` | Optional: force `groq`, `gemini` or `anthropic` (otherwise Claude, then Groq, then Gemini, by which key is set) |
+| `LEASHPAY_PROVIDER` | Optional: which provider answers first: `groq`, `gemini`, `openrouter` or `anthropic` (otherwise Claude, Groq, Gemini, OpenRouter, by which key is set). The others with keys are automatic backups when one is rate-limited or down |
 
 The agent's tools and the policy engine are the same whichever model answers. The shop shows which model answered under each reply.
 
