@@ -69,7 +69,7 @@ async function Simulator() {
 
 const WHERE = [
   { icon: Database, title: "Stored on the server", text: "The rules sit in the mandates table of the shop's database, not in the chat or the prompt." },
-  { icon: Bot, title: "Read-only for the agent", text: "Claude can read them with get_spending_rules. No tool lets it change them." },
+  { icon: Bot, title: "Read-only for the agent", text: "The agent can read them with get_spending_rules. No tool lets it change them." },
   { icon: Lock, title: "Checked twice", text: "Once when the agent proposes a cart, and again before the PayPal order is created." },
 ];
 

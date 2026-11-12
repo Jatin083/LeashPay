@@ -11,7 +11,7 @@ import { ThemedGradientText, ThemedShiny } from "@/components/Themed";
 
 export const metadata: Metadata = {
   title: "How it works",
-  description: "How LeashPay lets a Claude agent shop while code enforces your budget and PayPal takes your approval.",
+  description: "How LeashPay lets an AI agent shop while code enforces your budget and PayPal takes your approval.",
 };
 
 const TOOLS = [
@@ -68,7 +68,7 @@ export default function HowItWorksPage() {
             <SplitWords text="How LeashPay checks every purchase" accentFrom={2} />
           </h1>
           <p className="lede" data-hero="lede" style={{ marginTop: 16 }}>
-            Claude does the shopping. Code holds the rules. You hold the approval. Here is the path a single
+            The AI agent does the shopping. Code holds the rules. You hold the approval. Here is the path a single
             purchase takes.
           </p>
           <div data-hero="window" style={{ marginTop: 64 }}>
@@ -101,7 +101,7 @@ export default function HowItWorksPage() {
               The agent&apos;s four tools
             </h2>
             <p className="lede" data-reveal>
-              Claude works only through these. None of them can pay, change your rules or see payment details.
+              The agent works only through these. None of them can pay, change your rules or see payment details.
             </p>
           </div>
           <ul className="grid gap-4 md:grid-cols-2" style={{ listStyle: "none", margin: "48px 0 0", padding: 0 }}>

@@ -1,7 +1,7 @@
 /** The request path as a pulsing line: you, the agent, the policy engine, PayPal, you again. */
 const NODES = [
   { label: "You", sub: "ask for something" },
-  { label: "Claude agent", sub: "searches, proposes" },
+  { label: "AI agent", sub: "searches, proposes" },
   { label: "Policy engine", sub: "checks every rule" },
   { label: "PayPal", sub: "order with checked total" },
   { label: "You", sub: "approve and pay" },
@@ -9,7 +9,7 @@ const NODES = [
 
 export default function FlowDiagram() {
   return (
-    <div className="flow" role="img" aria-label="You ask the Claude agent, the agent proposes a cart, the policy engine checks it, PayPal creates the order, and you approve the payment.">
+    <div className="flow" role="img" aria-label="You ask the AI agent, the agent proposes a cart, the policy engine checks it, PayPal creates the order, and you approve the payment.">
       <style>{`
         .flow { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
         .flow-line { position: absolute; left: 10%; right: 10%; top: 27px; height: 2px; background: var(--line); border-radius: 3px; overflow: hidden; }

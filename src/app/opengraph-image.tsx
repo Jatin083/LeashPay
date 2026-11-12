@@ -30,7 +30,7 @@ export default function Image() {
           <span style={{ color: "#c8f53a" }}>that can&apos;t overspend</span>
         </div>
         <div style={{ display: "flex", fontSize: 30, color: "#cfd3ff" }}>
-          Claude builds the cart. Code enforces your budget. You approve on PayPal.
+          The AI builds the cart. Code enforces your budget. You approve on PayPal.
         </div>
       </div>
     ),

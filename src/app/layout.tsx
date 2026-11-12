@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     template: "%s · LeashPay",
   },
   description:
-    "LeashPay lets a Claude shopping agent search, compare and build your cart. Your budget is enforced in code, and every payment needs your approval on PayPal.",
+    "LeashPay lets an AI shopping agent search, compare and build your cart. Your budget is enforced in code, and every payment needs your approval on PayPal.",
   openGraph: {
     title: "LeashPay",
     description: "An AI shopping agent that can't spend past your rules.",

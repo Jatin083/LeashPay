@@ -18,7 +18,7 @@ const STEPS = [
     text: "Plain words in the shop chat. The agent gets your message and your spending rules, nothing else.",
   },
   {
-    title: "Claude searches and proposes",
+    title: "The agent searches and proposes",
     text: "It searches the catalog, compares what fits and proposes a cart with propose_cart. It can't add anything to your cart directly.",
   },
   {

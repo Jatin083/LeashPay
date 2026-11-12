@@ -12,7 +12,7 @@ import StarLink from "@/components/StarLink";
 
 const STEPS = [
   { title: "You set the rules", text: "Budget, categories and an item limit, stored on the server where no prompt can reach them." },
-  { title: "Claude builds the cart", text: "The agent searches the catalog, compares options and proposes a cart." },
+  { title: "The AI agent builds the cart", text: "The agent searches the catalog, compares options and proposes a cart." },
   { title: "Code checks the cart", text: "The policy engine prices it from the database and runs every rule." },
   { title: "You approve on PayPal", text: "Nothing is paid until you approve it yourself on PayPal." },
 ];
@@ -35,7 +35,7 @@ export default function Home() {
             <SplitWords text="An AI shopping agent that can't overspend" accentFrom={5} />
           </h1>
           <p className="lede" data-hero="lede" style={{ marginTop: 16 }}>
-            Claude finds what you ask for and builds the cart. Your budget is checked in code, and every
+            The AI agent finds what you ask for and builds the cart. Your budget is checked in code, and every
             payment waits for your approval on PayPal.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3" data-hero="actions" style={{ marginTop: 28 }}>
