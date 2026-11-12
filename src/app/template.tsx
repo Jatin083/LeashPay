@@ -15,6 +15,9 @@ let firstLoad = true;
 */
 export default function Template({ children }: { children: React.ReactNode }) {
   const [animate] = useState(() => {
+    // On the server, never animate: its module state is shared by every request, and the
+    // HTML it sends must match the browser's first render (no fade on first load).
+    if (typeof window === "undefined") return false;
     const isNavigation = !firstLoad;
     firstLoad = false;
     return isNavigation;
