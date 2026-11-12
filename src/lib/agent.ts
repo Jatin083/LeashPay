@@ -64,6 +64,24 @@ function cardsFor(shown: ProductRow[], proposal: CartProposal | null): ProductCa
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
+/**
+ * The system prompt plus the shopper's current rules, so the agent doesn't need a tool call
+ * (and a request against a free-tier rate limit) just to learn them. The rules are still
+ * enforced in code by propose_cart; this text only helps the agent plan a cart that fits.
+ */
+function systemPrompt() {
+  const mandate = loadMandate();
+  if (!mandate) return SYSTEM_PROMPT;
+  const budget = (mandate.budget / 100).toFixed(2);
+  return [
+    SYSTEM_PROMPT,
+    "",
+    `Current spending rules (for planning; propose_cart enforces them): budget $${budget} per order, ` +
+      `allowed categories ${mandate.allowedCategories.join(", ")}, at most ${mandate.maxQuantity} items per order, ` +
+      "payment approved by the shopper on PayPal. You don't need to call get_spending_rules unless the shopper asks about the rules.",
+  ].join("\n");
+}
+
 const SYSTEM_PROMPT = `You are LeashPay's shopping agent. You help one shopper find and choose products from the LeashPay catalog.
 
 What you can do: read the shopper's spending rules, search the catalog, compare products, and propose a cart.
@@ -359,7 +377,7 @@ async function runWithClaude(history: ChatTurn[]): Promise<AgentResult> {
     const response = await client.beta.messages.create({
       model: MODEL,
       max_tokens: 16000,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt(),
       tools,
       messages,
       output_config: { effort: "medium" },
@@ -494,7 +512,7 @@ async function runWithCompat(provider: CompatProvider, history: ChatTurn[]): Pro
   const cfg = COMPAT[provider];
   const engine = `${cfg.model} (${cfg.label})`;
   const messages: CompatMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt() },
     ...history.map((turn) => ({ role: turn.role, content: turn.content }) as CompatMessage),
   ];
 
