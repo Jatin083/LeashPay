@@ -44,7 +44,7 @@ The policy engine and its tests live in [`src/lib/policy.ts`](src/lib/policy.ts)
 | Part | Tools |
 | --- | --- |
 | App | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4 |
-| AI agent | Groq (`llama-3.3-70b-versatile`) or Gemini (`gemini-3.6-flash`) on their free tiers, or the Claude API; all with tool use |
+| AI agent | Groq (`openai/gpt-oss-120b`) or Gemini (`gemini-3.6-flash`) on their free tiers, or the Claude API; all with tool use |
 | Payments | PayPal Orders v2 (create and capture), Sandbox only |
 | Rules and data | Zod, SQLite through `better-sqlite3` |
 | Motion | GSAP with ScrollTrigger, Motion, Lenis smooth scroll, React Bits components |
@@ -72,7 +72,7 @@ Fill in `.env.local`:
 | `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | Same client ID, for the browser |
 | `APP_URL` | Where PayPal returns the buyer, for example `http://localhost:3000` |
 | `GROQ_API_KEY` | Free Groq key for the shopping agent |
-| `GROQ_MODEL` | Optional Groq model (default `llama-3.3-70b-versatile`) |
+| `GROQ_MODEL` | Optional Groq model (default `openai/gpt-oss-120b`) |
 | `GEMINI_API_KEY` | Free Gemini key for the shopping agent |
 | `GEMINI_MODEL` | Optional Gemini model (default `gemini-3.6-flash`) |
 | `ANTHROPIC_API_KEY` | Paid Claude key; used instead of Groq when set |

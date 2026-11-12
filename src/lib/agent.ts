@@ -335,9 +335,12 @@ function runWith(provider: Provider, history: ChatTurn[]) {
   return provider === "anthropic" ? runWithClaude(history) : runWithCompat(provider, history);
 }
 
-/** Free tiers hit rate limits fast; when one provider is limited or down, the next one with a key answers. */
+/**
+ * Free tiers hit rate limits fast, and providers retire models. When one provider is
+ * limited, down, or no longer serves the configured model (404), the next one with a key answers.
+ */
 function isTransient(error: unknown) {
-  if (error instanceof AgentProviderError) return error.status === 429 || error.status >= 500;
+  if (error instanceof AgentProviderError) return error.status === 429 || error.status === 404 || error.status >= 500;
   if (error instanceof Anthropic.RateLimitError || error instanceof Anthropic.InternalServerError) return true;
   return error instanceof Anthropic.APIConnectionError;
 }
@@ -443,7 +446,7 @@ const COMPAT: Record<CompatProvider, { label: string; url: string; keyEnv: strin
     label: "Groq",
     url: "https://api.groq.com/openai/v1/chat/completions",
     keyEnv: "GROQ_API_KEY",
-    model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+    model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
   },
   gemini: {
     label: "Gemini",
